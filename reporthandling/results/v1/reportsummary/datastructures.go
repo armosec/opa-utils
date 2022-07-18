@@ -14,11 +14,12 @@ type ControlSummaries map[string]ControlSummary
 
 // SummaryDetails detailed summary of the scanning. will contain versions, counters, etc.
 type SummaryDetails struct {
-	Score            float32             `json:"score"`              // overall score
-	Status           apis.ScanningStatus `json:"status"`             // overall status
-	Frameworks       []FrameworkSummary  `json:"frameworks"`         // list of framework summary
-	Controls         ControlSummaries    `json:"controls,omitempty"` // mapping of control - map[<control ID>]<control summary>
-	ResourceCounters ResourceCounters    `json:",inline"`
+	Score                 float32                      `json:"score"`                           // overall score
+	Status                apis.ScanningStatus          `json:"status"`                          // overall status
+	Frameworks            []FrameworkSummary           `json:"frameworks"`                      // list of framework summary
+	FrameworksSubsections []FrameworkSubsectionSummary `json:"frameworksSubsections,omitempty"` // list of framework subsections summary
+	Controls              ControlSummaries             `json:"controls,omitempty"`              // mapping of control - map[<control ID>]<control summary>
+	ResourceCounters      ResourceCounters             `json:",inline"`
 }
 
 // FrameworkSummary summary of scanning from a single framework perspective
@@ -29,6 +30,18 @@ type FrameworkSummary struct {
 	Version          string              `json:"version"`            // framework version
 	Controls         ControlSummaries    `json:"controls,omitempty"` // mapping of control - map[<control ID>]<control summary>
 	ResourceCounters ResourceCounters    `json:",inline"`
+}
+
+// FrameworkSummary summary of scanning from a single framework perspective
+type FrameworkSubsectionSummary struct {
+	Name          string                       `json:"name"`         // subsection name
+	Framework     string                       `json:"framework"`    // framework name
+	ID            string                       `json:"id"`           // subsection id
+	ControlsStats map[apis.ScanningStatus]uint `json:"controlStats"` // control statistics
+	// Score            float32             `json:"score"`        		// subsection score
+	// Status           apis.ScanningStatus `json:"status"`       		// subsection status
+	// Controls         ControlSummaries    `json:"controls,omitempty"` // mapping of control - map[<control ID>]<control summary>
+	// ResourceCounters ResourceCounters    `json:",inline"`
 }
 
 // ControlSummary summary of scanning from a single control perspective

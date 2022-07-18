@@ -75,9 +75,19 @@ type Framework struct {
 	Description          string    `json:"description"`
 	Controls             []Control `json:"controls"`
 	// for new list of  controls in POST/UPADTE requests
-	ControlsIDs *[]string `json:"controlsIDs,omitempty"`
+	ControlsIDs *[]string                      `json:"controlsIDs,omitempty"`
+	SubSections map[string]FrameworkSubSection `json:"subSections,omitempty"`
 }
+
 type UpdatedFramework struct {
 	Framework `json:",inline"`
 	Controls  []interface{} `json:"controls"`
+}
+
+type FrameworkSubSection struct {
+	armotypes.PortalBase `json:",inline"`
+	ID                   string                         `json:"id"`                    // unique id inside the framework.
+	SubSections          map[string]FrameworkSubSection `json:"subSections,omitempty"` // inner subsection
+	ControlIDs           []string                       `json:"controlsIDs,omitempty"` // control ids.
+	Controls             []*Control                     `json:"-"`                     // controls list for fast access
 }
