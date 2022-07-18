@@ -89,7 +89,7 @@ func (summaryDetails *SummaryDetails) summarizeSubSection(framework string, sect
 		for i := range section.SubSections {
 			childCtrls := summaryDetails.summarizeSubSection(framework, section.SubSections[i], controlInfoMap)
 			for id := range childCtrls {
-				ctrls[id] = childCtrls[i]
+				ctrls[id] = childCtrls[id]
 			}
 		}
 	}
