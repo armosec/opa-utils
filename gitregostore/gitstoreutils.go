@@ -27,7 +27,7 @@ const (
 	ControlRuleRelationsFileName      = "ControlID_RuleName"
 	defaultConfigInputsFileName       = "default_config_inputs"
 
-	controlIDRegex = `^[c|C][\-][0-9]{4}$|^(?:[a-z]+|[A-Z]+)(?:[\-][v]?(?:[0-9][\.]?)+)+$`
+	controlIDRegex = `^(?:[a-z]+|[A-Z]+)(?:[\-][v]?(?:[0-9][\.]?)+)(?:[\-]?[0-9][\.]?)+$`
 )
 
 var controlIDRegexCompiled *regexp.Regexp = nil
@@ -355,6 +355,7 @@ func HttpGetter(httpClient *http.Client, fullURL string) (string, error) {
 }
 
 // HTTPRespToString parses the body as string and checks the HTTP status code, it closes the body reader at the end
+// TODO: FIX BUG: status code is not being checked when the body is empty
 func HTTPRespToString(resp *http.Response) (string, error) {
 	if resp == nil || resp.Body == nil {
 		return "", nil
