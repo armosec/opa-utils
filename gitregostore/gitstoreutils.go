@@ -26,15 +26,19 @@ const (
 	frameworkControlRelationsFileName = "FWName_CID_CName"
 	ControlRuleRelationsFileName      = "ControlID_RuleName"
 	defaultConfigInputsFileName       = "default_config_inputs"
+
+	controlIDRegex = `^(?:[a-z]+|[A-Z]+)(?:[\-][v]?(?:[0-9][\.]?)+)(?:[\-]?[0-9][\.]?)+$`
 )
+
+var controlIDRegexCompiled *regexp.Regexp = nil
 
 var storeSetterMapping = map[string]storeSetter{
 	frameworksJsonFileName:            (*GitRegoStore).setFrameworks,
 	controlsJsonFileName:              (*GitRegoStore).setControls,
 	rulesJsonFileName:                 (*GitRegoStore).setRules,
-	frameworkControlRelationsFileName: (*GitRegoStore).setFrameworkControlRelationsFileName,
-	ControlRuleRelationsFileName:      (*GitRegoStore).setControlRuleRelationsFileName,
-	defaultConfigInputsFileName:       (*GitRegoStore).setDefaultConfigInputsFileName,
+	frameworkControlRelationsFileName: (*GitRegoStore).setFrameworkControlRelations,
+	ControlRuleRelationsFileName:      (*GitRegoStore).setControlRuleRelations,
+	defaultConfigInputsFileName:       (*GitRegoStore).setDefaultConfigInputs,
 }
 
 type InnerTree []struct {
@@ -153,7 +157,7 @@ func (gs *GitRegoStore) setObjectsFromRepoOnce() error {
 			if err != nil {
 				return err
 			}
-			if err := gs.setDefaultConfigInputsFileName(respStr); err != nil {
+			if err := gs.setDefaultConfigInputs(respStr); err != nil {
 				zap.L().Debug("In setObjectsFromRepoOnce - failed to set DefaultConfigInputs %s\n", zap.String("path", rawDataPath))
 				return err
 			}
@@ -162,13 +166,13 @@ func (gs *GitRegoStore) setObjectsFromRepoOnce() error {
 			if err != nil {
 				return err
 			}
-			gs.setControlRuleRelationsFileName(respStr)
+			gs.setControlRuleRelations(respStr)
 		} else if strings.HasSuffix(path.PATH, frameworkControlRelationsFileName+".csv") {
 			respStr, err := HttpGetter(gs.httpClient, rawDataPath)
 			if err != nil {
 				return err
 			}
-			gs.setFrameworkControlRelationsFileName(respStr)
+			gs.setFrameworkControlRelations(respStr)
 		}
 	}
 	return nil
@@ -304,7 +308,7 @@ func (gs *GitRegoStore) setRules(respStr string) error {
 	gs.Rules = *rules
 	return nil
 }
-func (gs *GitRegoStore) setDefaultConfigInputsFileName(respStr string) error {
+func (gs *GitRegoStore) setDefaultConfigInputs(respStr string) error {
 	defaultConfigInputs := armotypes.CustomerConfig{}
 	if err := JSONDecoder(respStr).Decode(&defaultConfigInputs); err != nil {
 		return err
@@ -315,13 +319,13 @@ func (gs *GitRegoStore) setDefaultConfigInputsFileName(respStr string) error {
 	return nil
 }
 
-func (gs *GitRegoStore) setFrameworkControlRelationsFileName(respStr string) error {
+func (gs *GitRegoStore) setFrameworkControlRelations(respStr string) error {
 	df := dataframe.ReadCSV(strings.NewReader(respStr))
 	gs.FrameworkControlRelations = df
 	return nil
 }
 
-func (gs *GitRegoStore) setControlRuleRelationsFileName(respStr string) error {
+func (gs *GitRegoStore) setControlRuleRelations(respStr string) error {
 	df := dataframe.ReadCSV(strings.NewReader(respStr))
 	gs.ControlRuleRelations = df
 	return nil
@@ -351,6 +355,7 @@ func HttpGetter(httpClient *http.Client, fullURL string) (string, error) {
 }
 
 // HTTPRespToString parses the body as string and checks the HTTP status code, it closes the body reader at the end
+// TODO: FIX BUG: status code is not being checked when the body is empty
 func HTTPRespToString(resp *http.Response) (string, error) {
 	if resp == nil || resp.Body == nil {
 		return "", nil
@@ -383,8 +388,16 @@ func HTTPRespToString(resp *http.Response) (string, error) {
 }
 
 func isControlID(c string) bool {
-	if m, err := regexp.MatchString(`^[c|C][\-][0-9]{4}$`, c); err == nil {
-		return m
+
+	// Compile regex only once
+	if controlIDRegexCompiled == nil {
+		compiled, err := regexp.Compile(controlIDRegex)
+		if err != nil {
+			return false
+		}
+		controlIDRegexCompiled = compiled
 	}
-	return false
+
+	// Match
+	return controlIDRegexCompiled.MatchString(c)
 }

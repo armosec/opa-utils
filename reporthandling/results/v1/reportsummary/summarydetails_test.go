@@ -3,6 +3,8 @@ package reportsummary
 import (
 	"testing"
 
+	"github.com/armosec/armoapi-go/armotypes"
+	"github.com/armosec/opa-utils/reporthandling"
 	"github.com/armosec/opa-utils/reporthandling/apis"
 	"github.com/armosec/opa-utils/reporthandling/results/v1/resourcesresults"
 	"github.com/stretchr/testify/assert"
@@ -114,5 +116,185 @@ func TestUpdateControlsSummaryCountersAll(t *testing.T) {
 		assert.Equal(t, 0, v.NumberOfResources().Failed())
 		assert.Equal(t, 0, v.NumberOfResources().Skipped())
 		assert.Equal(t, 0, v.NumberOfResources().Excluded())
+	}
+}
+
+func TestSummaryDetails_InitSubsectionsSummary(t *testing.T) {
+
+	// Setup data
+	simpleSubsection := reporthandling.FrameworkSubSection{
+		PortalBase: armotypes.PortalBase{Name: "root"},
+		ID:         "1",
+		ControlIDs: []string{
+			"C-0011",
+			"C-0012",
+		},
+	}
+	simpleFrameworks := []reporthandling.Framework{
+		{
+			PortalBase: armotypes.PortalBase{
+				Name: "simple framework",
+			},
+			SubSections: map[string]reporthandling.FrameworkSubSection{"1": simpleSubsection},
+		},
+	}
+	nestedSubsection := reporthandling.FrameworkSubSection{
+		PortalBase:  armotypes.PortalBase{Name: "parent"},
+		ID:          "2",
+		SubSections: map[string]reporthandling.FrameworkSubSection{"1": simpleSubsection},
+		ControlIDs: []string{
+			"C-0015",
+			"C-0014",
+		},
+	}
+	nestedFrameworks := []reporthandling.Framework{
+		{
+			PortalBase:  armotypes.PortalBase{Name: "nested framework"},
+			SubSections: map[string]reporthandling.FrameworkSubSection{"2": nestedSubsection},
+		},
+	}
+
+	// Setup test cases
+	type fields struct {
+		SummaryDetails *SummaryDetails
+	}
+	type args struct {
+		opaFrameworks  []reporthandling.Framework
+		controlInfoMap map[string]apis.StatusInfo
+	}
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		expected []FrameworkSubsectionSummary
+	}{
+		{
+			name:   "simple passed",
+			fields: fields{SummaryDetails: MockSummaryDetails()},
+			args: args{
+				opaFrameworks: simpleFrameworks,
+				controlInfoMap: map[string]apis.StatusInfo{
+					"C-0011": {InnerStatus: apis.StatusPassed},
+					"C-0012": {InnerStatus: apis.StatusPassed},
+					"C-0013": {InnerStatus: apis.StatusPassed},
+				},
+			},
+			expected: []FrameworkSubsectionSummary{
+				{
+					Name:      "root",
+					Framework: "simple framework",
+					ID:        "1",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed: 2,
+					},
+				},
+			},
+		},
+		{
+			name:   "simple mixed",
+			fields: fields{SummaryDetails: MockSummaryDetails()},
+			args: args{
+				opaFrameworks: simpleFrameworks,
+				controlInfoMap: map[string]apis.StatusInfo{
+					"C-0011": {InnerStatus: apis.StatusPassed},
+					"C-0012": {InnerStatus: apis.StatusFailed},
+					"C-0013": {InnerStatus: apis.StatusPassed},
+				},
+			},
+			expected: []FrameworkSubsectionSummary{
+				{
+					Name:      "root",
+					Framework: "simple framework",
+					ID:        "1",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed: 1,
+						apis.StatusFailed: 1,
+					},
+				},
+			},
+		},
+		{
+			name:   "nested passed",
+			fields: fields{SummaryDetails: MockSummaryDetails()},
+			args: args{
+				opaFrameworks: nestedFrameworks,
+				controlInfoMap: map[string]apis.StatusInfo{
+					"C-0011": {InnerStatus: apis.StatusPassed},
+					"C-0012": {InnerStatus: apis.StatusPassed},
+					"C-0013": {InnerStatus: apis.StatusPassed},
+					"C-0014": {InnerStatus: apis.StatusPassed},
+				},
+			},
+			expected: []FrameworkSubsectionSummary{
+				{
+					Name:      "root",
+					Framework: "nested framework",
+					ID:        "1",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed: 2,
+					},
+				},
+				{
+					Name:      "parent",
+					Framework: "nested framework",
+					ID:        "2",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed: 3,
+					},
+				},
+			},
+		},
+		{
+			name:   "nested mixed",
+			fields: fields{SummaryDetails: MockSummaryDetails()},
+			args: args{
+				opaFrameworks: nestedFrameworks,
+				controlInfoMap: map[string]apis.StatusInfo{
+					"C-0011": {InnerStatus: apis.StatusPassed},
+					"C-0012": {InnerStatus: apis.StatusFailed},
+					"C-0013": {InnerStatus: apis.StatusExcluded},
+					"C-0014": {InnerStatus: apis.StatusIgnored},
+					"C-0015": {InnerStatus: apis.StatusError},
+				},
+			},
+			expected: []FrameworkSubsectionSummary{
+				{
+					Name:      "root",
+					Framework: "nested framework",
+					ID:        "1",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed: 1,
+						apis.StatusFailed: 1,
+					},
+				},
+				{
+					Name:      "parent",
+					Framework: "nested framework",
+					ID:        "2",
+					ControlsStats: map[apis.ScanningStatus]uint{
+						apis.StatusPassed:  1,
+						apis.StatusFailed:  1,
+						apis.StatusIgnored: 1,
+						apis.StatusError:   1,
+					},
+				},
+			},
+		},
+	}
+
+	// Run tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fields.SummaryDetails.InitSubsectionsSummary(tt.args.opaFrameworks, tt.args.controlInfoMap)
+			for i, summary := range tt.fields.SummaryDetails.FrameworksSubsections {
+				assert.Equal(t, tt.expected[i].Name, summary.Name)
+				assert.Equal(t, tt.expected[i].ID, summary.ID)
+				assert.Equal(t, tt.expected[i].Framework, summary.Framework)
+				assert.Equal(t, len(tt.expected[i].ControlsStats), len(summary.ControlsStats))
+				for status := range summary.ControlsStats {
+					assert.Equal(t, tt.expected[i].ControlsStats[status], summary.ControlsStats[status])
+				}
+			}
+		})
 	}
 }
